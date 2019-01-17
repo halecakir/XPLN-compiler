@@ -1,0 +1,92 @@
+grammar hw;
+
+start     : stmt ';' (entry ';')+
+          ;
+
+entry     :  stmt | fdef
+          ;
+
+stmts     : (stmt ';')+
+          ;
+
+stmt      :  s
+          |  ifCond
+          | wh
+          | ret
+          | io
+          ;
+
+s         :  ID ':=' expr
+          | fcall
+          ;
+
+fdef      : 'fun' ID '(' plist_def? ')' stmts 'endf'
+          ;
+
+plist_def : ID (',' ID)*
+          ;
+
+fcall     : ID '(' plist_call? ')'
+          ;
+
+plist_call: expr (',' expr)*
+          ;
+
+ifCond    : 'if' cond stmts ('else' stmts)? 'endi'
+          ;
+
+wh        : 'while' cond stmts 'endw'
+          ;
+
+ret       : 'return' expr
+          ;
+
+io        : ('input' | 'output') ID
+          ;
+
+cond      : expr BOP expr
+          | cond LOP cond
+          | UOP cond
+          | '(' cond ')'
+          ;
+
+expr      :  expr ('*'|'/') expr
+          | expr ('+'|'-') expr
+          |  ID
+          | NUM
+          | '(' expr ')'
+          | fcall
+          ;
+
+LOP       : 'and'
+          | 'or'
+          ;
+
+UOP       : '!'
+          ;
+
+BOP       : '>'
+          | '<'
+          | '=='
+          | '>='
+          | '<='
+          | '!='
+          ;
+
+ID        :   ID_LETTER (ID_LETTER | [0-9] )*
+          ;
+fragment
+ID_LETTER : [a-zA-Z_]
+          ;
+
+NUM       :  DIGIT+
+          |  DIGIT+ '.' DIGIT*
+          |  '.' DIGIT+
+          ;
+fragment
+DIGIT     : [0-9]
+          ;
+
+LINE_COMMENT : '//' .*? '\n' -> skip  ;
+COMMENT      : '/*' .*? '*/' -> skip  ;
+WS           : [ \t\n\r]+ -> skip     ;

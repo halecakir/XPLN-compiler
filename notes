@@ -1,0 +1,13 @@
+c.lt.s $f1, $f4 -- is less than?
+bc1f somewhere -- if not true, jump
+
+cfc1   $t0, $25  # load FCCR into t0
+andi   $t0, 1    # mask the bit 0 only
+
+
+e     --> e ADD te 
+(mk-code (append (var-get-code e)
+									    (var-get-code te)
+									    (mk-3ac 'add newplace
+										    (var-get-place e)
+										    (var-get-place te))))

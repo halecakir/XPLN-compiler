@@ -92,7 +92,9 @@
                               (IF "if")
                               (LABEL "label")
                               (JUMP "j")
-                              (NOP "nop"))) ; intstruction set corr.
+                              (NOP "nop")
+                              (PRINT "print")
+                              (CALL "jal"))) ; intstruction set corr.
 
  ;; MIPS is case-sensitive, so we use strings to map TAC code to MIPS
  ;; it also needs to know whether we use floating point or integer op (.s means float)
@@ -246,6 +248,19 @@
     (cond ((equal op-var 'LABEL)
             (format t "~%~A:" p1))
           ((equal op-var 'JUMP)
+            (format t "~%~A ~A" op p1))
+          ((equal op-var 'PRINT)
+            (format t "~%li $v0, 2")
+            (format t "~%l.s $f12, ~A" p1)
+            (format t "~%syscall")
+            (format t "~%li $v0, 4")  ;print newline
+            (format t "~%la $a0, newline")
+            (format t "~%syscall"))
+          ((equal op-var 'PUSH)
+            (format t "~%subu $sp, $sp, 8")
+            (format t "~%l.s $f0,~A" p1)
+            (format t "~%s.s $f0, ($sp)"))
+          ((equal op-var 'CALL)
             (format t "~%~A ~A" op p1)))))
 
 (defun mk-mips-0ac (i)
@@ -264,7 +279,8 @@
   (maphash #'(lambda (key val)
 	       (if (equal (sym-get-type val) 'VAR) (format t "~%~A: .float 0.0" (sym-get-value val))))
 	   *symtab*)
-  (format t "~%zzeerroo: .float 0.0")) ; MIPS has no float point zero constant like $zero for ints. bad bad
+  (format t "~%zzeerroo: .float 0.0") ; MIPS has no float point zero constant like $zero for ints. bad bad
+  (format t "~%newline: .asciiz \"\\n\""))
 
 (defun create-code-segment (code)
   (format t "~2%.text~2%") 
@@ -282,9 +298,7 @@
   (format t "~%#MIPs termination protocol:")
   (format t "~%li $v0,10") ; MIPs termination protocol
   (format t "~%syscall")
-  (format t "~%.end main")
-  )
-
+  (format t "~%.end main"))
 
 (defun map-to-mips (code)
   (if (stringp *outstream*) (dribble *outstream*))  ; open out
@@ -369,6 +383,49 @@
                                                                                     (mk-place (t-get-val ID))
                                                                                     (mk-code nil)))))
 
+  (postfix_expr         --> factor                                              #'(lambda (e)(identity e)))
+
+  (postfix_expr         --> postfix_expr LP plist_call RP                       #'(lambda (postfix_expr LP plist_call RP) ;;Argumansiz da ekle
+                                                                                (progn
+                                                                                  ;(mk-sym-entry (t-get-val ID))
+                                                                                  (list
+                                                                                    (mk-code
+                                                                                      (append
+                                                                                        (var-get-code plist_call)
+                                                                                        (mk-1ac 'call (var-get-place postfix_expr))
+                                                                                      )
+                                                                                    )
+                                                                                    (mk-place nil)      ;;nil olmayacak return degeri eklenecek
+                                                                                  )
+                                                                                )))
+
+                                                                                
+
+  (plist_call           --> plist_call COMMA assign_expr                        #'(lambda (plist_def COMMA expression)
+                                                                                (progn
+                                                                                  (list
+                                                                                    (mk-code 
+                                                                                      (append 
+                                                                                        (var-get-code expression)
+                                                                                        (mk-1ac 'push (var-get-place expression))
+                                                                                      )
+                                                                                    )
+                                                                                  )
+                                                                                )))
+
+  (plist_call           -->  assign_expr                                        #'(lambda (expression)
+                                                                                (progn
+                                                                                  (list
+                                                                                    (mk-code 
+                                                                                      (append 
+                                                                                        (var-get-code expression)
+                                                                                        (mk-1ac 'push (var-get-place expression))
+                                                                                      )
+                                                                                    )
+                                                                                    (mk-place nil)
+                                                                                  )
+                                                                                )))                                                                                    
+
   (unary_expr           --> SUB unary_expr                                      #'(lambda (SUB unary_expr) 
                                                                                 (let 
                                                                                   ((newplace (newtemp)))
@@ -389,7 +446,7 @@
                                                                                       (mk-2ac 'not newplace
                                                                                         (var-get-place unary_expr)))))))                                                                                     
 
-  (unary_expr           --> factor                                              #'(lambda (e)(identity e)))
+  (unary_expr           --> postfix_expr                                        #'(lambda (e)(identity e)))
 
   (mult_expr            --> mult_expr MULT factor                               #'(lambda (mult_expr MULT factor) 
                                                                                 (let ((newplace (newtemp)))
@@ -511,7 +568,7 @@
                                                                                       (mk-3ac-condi 'eqeq newplace 
                                                                                         (var-get-place e1)
                                                                                         (var-get-place e2))))))))
-                                                                                        
+
   (eq_expr              -->  eq_expr NOT EQLS rel_expr                         #'(lambda (e1 NOT EQLS2 e2) 
                                                                                 (let ((newplace (newtemp)))
                                                                                   (mk-sym-entry newplace)
@@ -558,14 +615,16 @@
 
   (assign_expr          --> or_expr                                             #'(lambda (e) (identity e)))
 
-  (assign_expr          --> ID COLON EQLS or_expr END                           #'(lambda (ID COLON EQLS or_expr END)
+  (assign_expr          --> ID COLON EQLS or_expr                               #'(lambda (ID COLON EQLS or_expr)
                                                                                 (progn 
                                                                                   (mk-sym-entry (t-get-val ID))
                                                                                   (list 
                                                                                     (mk-code (append  
                                                                                       (var-get-code or_expr) 
                                                                                       (mk-2copy (t-get-val ID) 
-                                                                                        (var-get-place or_expr))))
+                                                                                        (var-get-place or_expr))
+                                                                                      ;(mk-1ac 'print (t-get-val ID))
+                                                                                      ))
                                                                                     (mk-place (t-get-val ID))))))
 
   (expression           --> assign_expr                                         #'(lambda (e) (identity e)))
@@ -577,7 +636,7 @@
                                                                                       (var-get-code expression)
                                                                                       (var-get-code assign_expr)))
                                                                                     (mk-place (var-get-place assign_expr))))))
-
+  
   (expr_statement       --> expression  END                                     #'(lambda (expression END) (identity expression)))
 
   (expr_statement       -->  END                                                #'(lambda (END) 
@@ -585,20 +644,18 @@
                                                                                   (list
                                                                                     (mk-code (append
                                                                                       (mk-0ac 'nop)))
-                                                                                   (mk-place nil)))))                                                                                          
+                                                                                   (mk-place nil)))))     
 
-
-
-  (selection_statement  --> IF LP expression RP stmts ENDI END                    #'(lambda (IF LP expression RP stmts ENDI END)
-                                                                                  (let  
-                                                                                    ((label1 (newlabel)))
-                                                                                    (list
-                                                                                      (mk-code (append
-                                                                                        (var-get-code expression)
-                                                                                        (mk-2ac 'if (var-get-place expression) label1)
-                                                                                        (var-get-code stmts)
-                                                                                        (mk-1ac 'label label1)))
-                                                                                      (mk-place nil)))))
+  (selection_statement  --> IF LP expression RP stmts ENDI END                  #'(lambda (IF LP expression RP stmts ENDI END)
+                                                                                (let  
+                                                                                  ((label1 (newlabel)))
+                                                                                  (list
+                                                                                    (mk-code (append
+                                                                                      (var-get-code expression)
+                                                                                      (mk-2ac 'if (var-get-place expression) label1)
+                                                                                      (var-get-code stmts)
+                                                                                      (mk-1ac 'label label1)))
+                                                                                    (mk-place nil)))))
                                                                                       
   (selection_statement  --> IF LP expression RP stmts ELSE stmts ENDI END       #'(lambda (IF LP expression RP stmts1 ELSE stmts2 ENDI END)
                                                                                 (let  
@@ -682,7 +739,7 @@
 
 ))
 
-(defparameter lexforms '(ID END COLON EQLS LP RP ADD SUB MULT DIV GRT LST AND OR NOT IF ENDI ELSE WHILE ENDW DO ENDDO ENDFOR))
+(defparameter lexforms '(ID END COLON EQLS LP RP ADD SUB MULT DIV GRT LST AND OR NOT IF ENDI ELSE WHILE ENDW DO ENDDO FOR ENDFOR COMMA))
 
 (defparameter lexicon '(
 	          (\; END) ;; all but ID goes in the lexicon
@@ -708,7 +765,7 @@
       (endw ENDW)
       (do DO)
       (enddo ENDDO)
-      (for ENDFOR)
+      (for FOR)
       (endfor ENDFOR)
       (|,| COMMA)
 		  ))

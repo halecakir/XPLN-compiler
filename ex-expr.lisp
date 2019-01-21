@@ -309,11 +309,11 @@
             (format t "~%sw $ra, ($sp)")
             (format t "~%subu $sp, $sp, 8")
             (format t "~%sw $fp, ($sp)")
-            (format t "~%addu $fp, $sp, 16"))
+            (format t "~%addu $fp, $sp, 8"))
           ((equal op-var 'LOAD)
             (format t "~%#load saved registers")
-            (format t "~%lw $ra, -8($fp)")
-            (format t "~%lw $fp, -16($fp)")
+            (format t "~%lw $ra, ($fp)")
+            (format t "~%lw $fp, -8($fp)")
             (format t "~%addu $sp, $sp, 16")
             (format t "~%jr $ra")))))
   
@@ -324,13 +324,38 @@
     (mk-mips p2 "$f0")
     (format t "~%s.s $f0,~A" p1)))
 
+(defun get-locals-main ()
+  (maphash #'(lambda (key val)
+                (cond 
+                  ((and (equal (second key) 0) (equal (sym-get-type val) 'VAR))
+                    (format t "~%~A_~A: .float 0.0" (sym-get-value val) (second key))))) *symtab*))
+
+(defun get-locals-functions (n)
+(let ((counter 16))
+  (loop for key being the hash-keys of *symtab*
+   do (cond 
+      ((and (equal (second key) n) (equal (sym-get-type (gethash key  *symtab*)) 'VAR))
+        (format t "~%~A_~A: .word ~A" (sym-get-value (gethash key  *symtab*)) (second key) counter)
+        (setf counter (+ counter 8)))))))        
+    
+    
 
 (defun create-data-segment ()
   "only for variables; numbers will use immmediate loading rather than lw or l.s."
   (format t "~2%.data~%")
-  (maphash #'(lambda (key val)
-	       (if (equal (sym-get-type val) 'VAR) (format t "~%~A_~A: .float 0.0" (sym-get-value val) (second key))))
-	   *symtab*)
+  ;(maphash #'(lambda (key val)
+	;       (if (equal (sym-get-type val) 'VAR) (format t "~%~A_~A: .float 0.0" (sym-get-value val) (second key))))
+	;   *symtab*)
+
+  (format t "~%#main-variables")
+  (get-locals-main)
+  
+  (loop for x from 1 to (identity *saved-blockno*)
+   do (format t "~%#.block-~A-variables" x)
+      (get-locals-functions x)
+   )
+
+  (format t "~%#helper-variables")
   (format t "~%zzeerroo: .float 0.0") ; MIPS has no float point zero constant like $zero for ints. bad bad
   (format t "~%newline: .asciiz \"\\n\""))
 
@@ -385,6 +410,7 @@
   (pprint-code code)
   (format t "~2%QtSpim target code:")
   (map-to-mips code))
+
 
 ;; some aux functions  to retrieve amd make feature values for grammar variables
 
@@ -513,7 +539,7 @@
                                                                                     (mk-code
                                                                                       (append
                                                                                         (var-get-code plist_call)
-                                                                                        (mk-1ac 'call (t-get-val ID));(var-get-place postfix_expr))
+                                                                                        (mk-1ac 'call (t-get-val ID))
                                                                                         (mk-2ac 'getreturn (blocked-symbol newplace) (var-get-place plist_call))
                                                                                       )
                                                                                     )
@@ -593,10 +619,10 @@
                                                                                   (list
                                                                                     (mk-code 
                                                                                       (append
-                                                                                        (mk-2ac 'getparam (blocked-symbol(t-get-val ID)) 0)))
-                                                                                    (mk-place 1)))))
+                                                                                        (mk-2ac 'getparam (blocked-symbol(t-get-val ID)) 1)))
+                                                                                    (mk-place 2)))))
 
-  (plist_def            -->                                                     #'(lambda ()    ;; TODO : INCREMENT BLOCK
+  (plist_def            -->                                                     #'(lambda ()
                                                                                   (progn
                                                                                     (reload-block)                                                                                                                                                                  
                                                                                     (increment-block)

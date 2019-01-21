@@ -11,9 +11,12 @@ Y_1: .float 0.0
 t445_1: .float 0.0
 t446_1: .float 0.0
 A_2: .float 0.0
-F1_0: .float 0.0
-t447_0: .float 0.0
+B_2: .float 0.0
+t447_2: .float 0.0
+t448_0: .float 0.0
 A_0: .float 0.0
+t449_0: .float 0.0
+B_0: .float 0.0
 zzeerroo: .float 0.0
 newline: .asciiz "\n"
 
@@ -66,12 +69,12 @@ s.s $f0,X_1
 l.s $f0,B_1
 l.s $f2,C_1
 mul.s $f0,$f0,$f2
-s.s $f0,t445
+s.s $f0,t445_1
 l.s $f0,A_1
-l.s $f2,t445
+l.s $f2,t445_1
 add.s $f0,$f0,$f2
-s.s $f0,t446
-l.s $f0, t446
+s.s $f0,t446_1
+l.s $f0, t446_1
 #load saved registers
 lw $ra, -8($fp)
 lw $fp, -16($fp)
@@ -87,13 +90,23 @@ sw $ra, ($sp)
 subu $sp, $sp, 8
 sw $fp, ($sp)
 addu $fp, $sp, 16
-#Arg A_2
-li $t0, 8
-mul $t0, $t0, 0
-addu $t0, $t0, $fp
-l.s $f2, ($t0)
-s.s $f2, A_2
-l.s $f0, A_2
+#converting to float
+li $t0,10
+mtc1 $t0,$f6
+cvt.s.w $f0,$f6
+#conversion done
+s.s $f0,A_2
+#converting to float
+li $t0,2
+mtc1 $t0,$f6
+cvt.s.w $f0,$f6
+#conversion done
+s.s $f0,B_2
+l.s $f0,A_2
+l.s $f2,B_2
+div.s $f0,$f0,$f2
+s.s $f0,t447_2
+l.s $f0, t447_2
 #load saved registers
 lw $ra, -8($fp)
 lw $fp, -16($fp)
@@ -133,16 +146,30 @@ mtc1 $t0,$f6
 cvt.s.w $f0,$f6
 #conversion done
 s.s $f0, ($sp)
-jal f1_0
-s.s $f0, t447
+jal f1
+s.s $f0, t448_0
 li $t0, 8
 mul $t0, $t0, 3
 addu $sp, $sp, $t0
-l.s $f0,t447
+l.s $f0,t448_0
 s.s $f0,A_0
 #print out A_0
 li $v0, 2
 l.s $f12, A_0
+syscall
+li $v0, 4
+la $a0, newline
+syscall
+jal f2
+s.s $f0, t449_0
+li $t0, 8
+mul $t0, $t0, 0
+addu $sp, $sp, $t0
+l.s $f0,t449_0
+s.s $f0,B_0
+#print out B_0
+li $v0, 2
+l.s $f12, B_0
 syscall
 li $v0, 4
 la $a0, newline

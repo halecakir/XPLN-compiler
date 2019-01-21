@@ -8,9 +8,16 @@ X := 13;
 return a + b * c;
 endf;
 
-fun f2 (a) 
-return a ;
+fun f2 ()
+a := 10;
+b := 2; 
+return a / b;
 endf;
 
 A := f1(3,4,5);
 output A;
+
+B := f2();
+output B;
+
+

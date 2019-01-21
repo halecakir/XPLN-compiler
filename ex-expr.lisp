@@ -434,17 +434,13 @@
   (gensym "l"))       ; returns a new symbol prefixed l at Lisp run-time
 
 (defun blocked-symbol (x)
-  
-    (if (numberp x)
-          x
-          (intern 
-            (concatenate 'string 
-              (string x) 
-              (concatenate 'string "_" (write-to-string *blockno*))) 
-            )
-          )
-    
-  )
+  (if (numberp x)
+    x
+    (intern 
+      (concatenate 'string 
+        (string x) 
+        (concatenate 'string "_" (write-to-string *blockno*))))))
+
 (defun increment-block()
   (setf *blockno* (+ *blockno* 1)))
 
@@ -468,6 +464,12 @@
                                                                                       (var-get-code statement)
                                                                                       (var-get-code entries))))))
 
+  (start                --> statement                                           #'(lambda (statement) 
+					                                                                      (tac-to-rac 
+                                                                                  (mk-code 
+                                                                                    (append
+                                                                                      (var-get-code statement))))))                                                                                     
+
   (entries              --> entries entry                                       #'(lambda (entries entry)
                                                                                 (list
                                                                                   (mk-place nil)
@@ -475,7 +477,8 @@
                                                                                     (var-get-code entries)
                                                                                     (var-get-code entry))))))   
 
-  (entries              --> entry                                               #'(lambda (e)(identity e)))                                                                              
+  (entries              --> entry                                               #'(lambda (e)(identity e)))  
+
 
   (entry                --> statement                                           #'(lambda (e)(identity e)))
 
@@ -501,6 +504,55 @@
                                                                                   (list 
                                                                                     (mk-place (blocked-symbol (t-get-val ID)))
                                                                                     (mk-code nil)))))
+
+  (factor        -->  ID LP plist_call RP                                       #'(lambda (ID LP plist_call RP) 
+                                                                                (let
+                                                                                  ((newplace (newtemp)))
+                                                                                  (mk-sym-entry newplace)
+                                                                                  (list
+                                                                                    (mk-code
+                                                                                      (append
+                                                                                        (var-get-code plist_call)
+                                                                                        (mk-1ac 'call (t-get-val ID));(var-get-place postfix_expr))
+                                                                                        (mk-2ac 'getreturn (blocked-symbol newplace) (var-get-place plist_call))
+                                                                                      )
+                                                                                    )
+                                                                                    (mk-place (blocked-symbol newplace))      
+                                                                                  )
+                                                                                )))
+
+                                                                                
+
+  (plist_call           --> plist_call COMMA assign_expr                        #'(lambda (plist_call COMMA assign_expr)
+                                                                                (progn
+                                                                                  (list
+                                                                                    (mk-code 
+                                                                                      (append 
+                                                                                        (var-get-code assign_expr)
+                                                                                        (mk-1ac 'push (var-get-place assign_expr))
+                                                                                        (var-get-code plist_call)
+                                                                                      )
+                                                                                    )
+                                                                                    (mk-place (+ (var-get-place plist_call) 1 ))
+                                                                                  )
+                                                                                )))
+
+  (plist_call           -->  assign_expr                                       #'(lambda (assign_expr )
+                                                                                (progn
+                                                                                  (list
+                                                                                    (mk-code 
+                                                                                      (append 
+                                                                                        (var-get-code assign_expr)
+                                                                                        (mk-1ac 'push (var-get-place assign_expr))
+                                                                                      )
+                                                                                    )
+                                                                                    (mk-place 1)
+                                                                                  )
+                                                                                )))         
+
+  (plist_call           -->                                                     #'(lambda ()(progn (list (mk-code nil) (mk-place 0))))) ;epsilon                                                                                    
+
+
   
   (function_def         --> FUN ID LP plist_def RP stmts ENDF END                #'(lambda (FUN ID LP plist_def RP  stmts ENDF END)  ;;function ve variable lar ayni adda ise ne yapilmali?
                                                                                 (progn
@@ -545,67 +597,21 @@
                                                                                     (mk-place 1)))))
 
   (plist_def            -->                                                     #'(lambda ()    ;; TODO : INCREMENT BLOCK
-                                                                                ))                                                                                                                                                              
-
-
-
-  (postfix_expr         --> factor                                              #'(lambda (e)(identity e)))
-
-  (postfix_expr         --> postfix_expr LP plist_call RP                       #'(lambda (postfix_expr LP plist_call RP) 
-                                                                                (let
-                                                                                  ((newplace (newtemp)))
-                                                                                  (mk-sym-entry newplace)
-                                                                                  (list
-                                                                                    (mk-code
-                                                                                      (append
-                                                                                        (var-get-code plist_call)
-                                                                                        (mk-1ac 'call (var-get-place postfix_expr))
-                                                                                        (mk-2ac 'getreturn newplace (var-get-place plist_call))
-                                                                                      )
-                                                                                    )
-                                                                                    (mk-place newplace)      
-                                                                                  )
-                                                                                )))
-
-                                                                                
-
-  (plist_call           --> plist_call COMMA assign_expr                        #'(lambda (plist_call COMMA assign_expr)
-                                                                                (progn
-                                                                                  (list
-                                                                                    (mk-code 
-                                                                                      (append 
-                                                                                        (var-get-code assign_expr)
-                                                                                        (mk-1ac 'push (var-get-place assign_expr))
-                                                                                        (var-get-code plist_call)
-                                                                                      )
-                                                                                    )
-                                                                                    (mk-place (+ (var-get-place plist_call) 1 ))
-                                                                                  )
-                                                                                )))
-
-  (plist_call           -->  assign_expr                                       #'(lambda (assign_expr )
-                                                                                (progn
-                                                                                  (list
-                                                                                    (mk-code 
-                                                                                      (append 
-                                                                                        (var-get-code assign_expr)
-                                                                                        (mk-1ac 'push (var-get-place assign_expr))
-                                                                                      )
-                                                                                    )
-                                                                                    (mk-place 1)
-                                                                                  )
-                                                                                )))         
-
-  (plist_call           -->                                                     #'(lambda ()(progn (list (mk-code nil) (mk-place 0))))) ;epsilon
+                                                                                  (progn
+                                                                                    (reload-block)                                                                                                                                                                  
+                                                                                    (increment-block)
+                                                                                    (list
+                                                                                      (mk-code nil)
+                                                                                      (mk-place nil)))))                                                                                                                                                              
 
   (unary_expr           --> SUB unary_expr                                      #'(lambda (SUB unary_expr) 
                                                                                 (let 
                                                                                   ((newplace (newtemp)))
                                                                                   (mk-sym-entry newplace)
                                                                                   (list 
-                                                                                    (mk-place newplace)
+                                                                                    (mk-place (blocked-symbol newplace))
                                                                                     (mk-code 
-                                                                                      (mk-2ac 'uminus newplace
+                                                                                      (mk-2ac 'uminus (blocked-symbol newplace)
                                                                                         (var-get-place unary_expr)))))))
 
   (unary_expr           --> NOT unary_expr                                      #'(lambda (NOT unary_expr) 
@@ -613,63 +619,64 @@
                                                                                   ((newplace (newtemp)))
                                                                                   (mk-sym-entry newplace)
                                                                                   (list 
-                                                                                    (mk-place newplace)
+                                                                                    (mk-place (blocked-symbol newplace))
                                                                                     (mk-code 
-                                                                                      (mk-2ac 'not newplace
+                                                                                      (mk-2ac 'not (blocked-symbol newplace)
                                                                                         (var-get-place unary_expr)))))))                                                                                     
 
-  (unary_expr           --> postfix_expr                                        #'(lambda (e)(identity e)))
+  (unary_expr           --> factor                                              #'(lambda (e)(identity e)))
 
-  (mult_expr            --> mult_expr MULT factor                               #'(lambda (mult_expr MULT factor) 
+  (mult_expr            --> mult_expr MULT unary_expr                           #'(lambda (mult_expr MULT unary_expr) 
                                                                                 (let ((newplace (newtemp)))
                                                                                   (mk-sym-entry newplace)
                                                                                   (list 
-                                                                                    (mk-place newplace)
+                                                                                    (mk-place (blocked-symbol newplace))
                                                                                     (mk-code 
                                                                                       (append 
                                                                                         (var-get-code mult_expr)
-                                                                                        (var-get-code factor)
-                                                                                        (mk-3ac 'mult newplace
+                                                                                        (var-get-code unary_expr)
+                                                                                        (mk-3ac 'mult (blocked-symbol newplace)
                                                                                           (var-get-place mult_expr)
-                                                                                          (var-get-place factor))))))))
+                                                                                          (var-get-place unary_expr))))))))
 
-  (mult_expr            --> mult_expr DIV factor                                #'(lambda (mult_expr DIV factor) 
+  (mult_expr            --> mult_expr DIV unary_expr                            #'(lambda (mult_expr DIV unary_expr) 
                                                                                 (let ((newplace (newtemp)))
                                                                                   (mk-sym-entry newplace)
                                                                                   (list 
-                                                                                    (mk-place newplace)
+                                                                                    (mk-place (blocked-symbol newplace))
                                                                                     (mk-code 
                                                                                       (append 
                                                                                         (var-get-code mult_expr)
-                                                                                        (var-get-code factor)
-                                                                                        (mk-3ac 'div newplace
+                                                                                        (var-get-code unary_expr)
+                                                                                        (mk-3ac 'div (blocked-symbol newplace)
                                                                                           (var-get-place mult_expr)
-                                                                                          (var-get-place factor))))))))
+                                                                                          (var-get-place unary_expr))))))))
 
   (mult_expr            --> unary_expr                                          #'(lambda (e)(identity e)))
 
   (add_expr             --> add_expr ADD mult_expr                              #'(lambda (add_expr ADD mult_expr) 
                                                                                 (let ((newplace (newtemp)))
                                                                                   (mk-sym-entry newplace)
-                                                                                  (list (mk-place newplace)
-                                                                                  (mk-code 
-                                                                                    (append 
-                                                                                      (var-get-code add_expr)
-                                                                                      (var-get-code mult_expr)
-                                                                                      (mk-3ac 'add newplace
-                                                                                        (var-get-place add_expr)
-                                                                                        (var-get-place mult_expr))))))))
+                                                                                  (list 
+                                                                                    (mk-place (blocked-symbol newplace))
+                                                                                    (mk-code 
+                                                                                      (append 
+                                                                                        (var-get-code add_expr)
+                                                                                        (var-get-code mult_expr)
+                                                                                        (mk-3ac 'add (blocked-symbol newplace)
+                                                                                          (var-get-place add_expr)
+                                                                                          (var-get-place mult_expr))))))))
 
   (add_expr             --> add_expr SUB mult_expr                              #'(lambda (add_expr SUB mult_expr) 
                                                                                 (let ((newplace (newtemp)))
                                                                                   (mk-sym-entry newplace)
                                                                                   (list 
-                                                                                    (mk-place newplace)
+                                                                                    (mk-place (blocked-symbol newplace))
                                                                                     (mk-code 
                                                                                     (append 
                                                                                       (var-get-code add_expr)
                                                                                       (var-get-code mult_expr)
-                                                                                      (mk-3ac 'sub newplace
+                                                                                      (mk-3ac 'sub (blocked-symbol newplace)
                                                                                         (var-get-place add_expr)
                                                                                         (var-get-place mult_expr))))))))
   (add_expr             --> mult_expr                                           #'(lambda (e) (identity e)))
@@ -678,12 +685,12 @@
                                                                                 (let ((newplace (newtemp)))
                                                                                   (mk-sym-entry newplace)
                                                                                   (list 
-                                                                                    (mk-place newplace)
+                                                                                    (mk-place (blocked-symbol newplace))
                                                                                     (mk-code 
                                                                                       (append 
                                                                                         (var-get-code e1)
                                                                                         (var-get-code e2)
-                                                                                        (mk-3ac-condi 'greater newplace 
+                                                                                        (mk-3ac-condi 'greater (blocked-symbol newplace) 
                                                                                           (var-get-place e1)
                                                                                           (var-get-place e2))))))))
 
@@ -691,12 +698,12 @@
                                                                                 (let ((newplace (newtemp)))
                                                                                   (mk-sym-entry newplace)
                                                                                   (list 
-                                                                                    (mk-place newplace)
+                                                                                    (mk-place (blocked-symbol newplace))
                                                                                     (mk-code 
                                                                                       (append 
                                                                                         (var-get-code e1)
                                                                                       (var-get-code e2)
-                                                                                      (mk-3ac-condi 'lesser newplace 
+                                                                                      (mk-3ac-condi 'lesser (blocked-symbol newplace) 
                                                                                         (var-get-place e1)
                                                                                         (var-get-place e2))))))))
                                                                                         
@@ -704,12 +711,12 @@
                                                                                 (let ((newplace (newtemp)))
                                                                                   (mk-sym-entry newplace)
                                                                                   (list 
-                                                                                    (mk-place newplace)
+                                                                                    (mk-place (blocked-symbol newplace))
                                                                                     (mk-code 
                                                                                       (append 
                                                                                         (var-get-code e1)
                                                                                         (var-get-code e2)
-                                                                                        (mk-3ac-condi 'greatereq newplace 
+                                                                                        (mk-3ac-condi 'greatereq (blocked-symbol newplace) 
                                                                                           (var-get-place e1)
                                                                                           (var-get-place e2))))))))
 
@@ -717,12 +724,12 @@
                                                                                 (let ((newplace (newtemp)))
                                                                                   (mk-sym-entry newplace)
                                                                                   (list 
-                                                                                    (mk-place newplace)
+                                                                                    (mk-place (blocked-symbol newplace))
                                                                                     (mk-code 
                                                                                       (append 
                                                                                         (var-get-code e1)
                                                                                         (var-get-code e2)
-                                                                                        (mk-3ac-condi 'lessereq newplace 
+                                                                                        (mk-3ac-condi 'lessereq (blocked-symbol newplace) 
                                                                                           (var-get-place e1)
                                                                                           (var-get-place e2))))))))
 
@@ -732,12 +739,12 @@
                                                                                 (let ((newplace (newtemp)))
                                                                                   (mk-sym-entry newplace)
                                                                                   (list 
-                                                                                    (mk-place newplace)
+                                                                                    (mk-place (blocked-symbol newplace))
                                                                                     (mk-code 
                                                                                       (append 
                                                                                         (var-get-code e1)
                                                                                       (var-get-code e2)
-                                                                                      (mk-3ac-condi 'eqeq newplace 
+                                                                                      (mk-3ac-condi 'eqeq (blocked-symbol newplace) 
                                                                                         (var-get-place e1)
                                                                                         (var-get-place e2))))))))
 
@@ -745,12 +752,12 @@
                                                                                 (let ((newplace (newtemp)))
                                                                                   (mk-sym-entry newplace)
                                                                                   (list 
-                                                                                    (mk-place newplace)
+                                                                                    (mk-place (blocked-symbol newplace))
                                                                                     (mk-code 
                                                                                       (append 
                                                                                         (var-get-code e1)
                                                                                         (var-get-code e2)
-                                                                                        (mk-3ac-condi 'noteq newplace 
+                                                                                        (mk-3ac-condi 'noteq (blocked-symbol newplace) 
                                                                                           (var-get-place e1)
                                                                                           (var-get-place e2)))))))) 
 
@@ -760,12 +767,12 @@
                                                                                 (let ((newplace (newtemp)))
                                                                                   (mk-sym-entry newplace)
                                                                                   (list 
-                                                                                    (mk-place newplace)
+                                                                                    (mk-place (blocked-symbol newplace))
                                                                                     (mk-code 
                                                                                       (append 
                                                                                         (var-get-code e1)
                                                                                         (var-get-code e2)
-                                                                                        (mk-3ac-condx 'and newplace 
+                                                                                        (mk-3ac-condx 'and (blocked-symbol newplace) 
                                                                                           (var-get-place e1)
                                                                                           (var-get-place e2))))))))
                                                                                           
@@ -775,12 +782,12 @@
                                                                                 (let ((newplace (newtemp)))
                                                                                   (mk-sym-entry newplace)
                                                                                   (list 
-                                                                                    (mk-place newplace)
+                                                                                    (mk-place (blocked-symbol newplace))
                                                                                     (mk-code 
                                                                                       (append 
                                                                                         (var-get-code e1)
                                                                                       (var-get-code e2)
-                                                                                      (mk-3ac-condx 'or newplace 
+                                                                                      (mk-3ac-condx 'or (blocked-symbol newplace) 
                                                                                         (var-get-place e1)
                                                                                         (var-get-place e2))))))))             
   (or_expr              --> and_expr                                            #'(lambda (e) (identity e)))
@@ -794,13 +801,11 @@
                                                                                     (mk-code (append  
                                                                                       (var-get-code or_expr) 
                                                                                       (mk-2copy (blocked-symbol(t-get-val ID)) 
-                                                                                        (var-get-place or_expr))
-                                                                                      ;(mk-1ac 'print (t-get-val ID))
-                                                                                      ))
+                                                                                        (var-get-place or_expr))))
                                                                                     (mk-place (blocked-symbol(t-get-val ID)))))))
 
   (expression           --> assign_expr                                         #'(lambda (e) (identity e)))
-
+  
   (expression           --> expression COMMA assign_expr                        #'(lambda (expression COMMA assign_expr) 
                                                                                 (progn
                                                                                   (list

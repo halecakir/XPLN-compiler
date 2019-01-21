@@ -9,6 +9,8 @@ ex-expr.lexer source_test > tokenstest
 (trace mk-code)
 (trace var-get-place)
 (trace var-get-code)
+(trace mk-0ac)
+(trace mk-1ac)
 (trace mk-2ac)
 (trace mk-3ac)
 (trace mk-2copy)
@@ -27,6 +29,8 @@ ex-expr.lexer source_test > tokenstest
 (trace tac-get-mips)
 (trace mk-mips-3ac)
 (trace mk-mips-2ac)
+(trace mk-mips-1ac)
+(trace mk-mips-0ac)
 (trace mk-mips-2copy)
 (trace mk-mips-3ac-condx)
 (trace mk-mips-3ac-condi)
@@ -36,7 +40,8 @@ ex-expr.lexer source_test > tokenstest
 (trace tac-to-rac)
 (trace  map-to-mips)
 
-
+(trace t-get-type)
+(trace t-get-val)
 
 > (load "ex-expr")
 

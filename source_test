@@ -1,6 +1,16 @@
 
-a := 2;
-b := 2;
-c := 2;
+x := 3;
 
-fun1 (a, b, c);
+fun f1 (a, b, c) 
+x := 10;
+y := 11;
+X := 13;
+return a + b * c;
+endf;
+
+fun f2 (a) 
+return a ;
+endf;
+
+A := f1(3,4,5);
+output A;

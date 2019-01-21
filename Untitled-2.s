@@ -2,18 +2,14 @@
 
 .data
 
-X_0: .float 0.0
-A_1: .float 0.0
-B_1: .float 0.0
-C_1: .float 0.0
-X_1: .float 0.0
-Y_1: .float 0.0
-t445_1: .float 0.0
-t446_1: .float 0.0
-A_2: .float 0.0
-F1_0: .float 0.0
-t447_0: .float 0.0
-A_0: .float 0.0
+X: .float 0.0
+A: .float 0.0
+B: .float 0.0
+C: .float 0.0
+t445: .float 0.0
+t446: .float 0.0
+F1: .float 0.0
+t447: .float 0.0
 zzeerroo: .float 0.0
 newline: .asciiz "\n"
 
@@ -27,79 +23,39 @@ sw $ra, ($sp)
 subu $sp, $sp, 8
 sw $fp, ($sp)
 addu $fp, $sp, 16
-#Arg A_1
+#Arg A
 li $t0, 8
 mul $t0, $t0, 0
 addu $t0, $t0, $fp
 l.s $f2, ($t0)
-s.s $f2, A_1
-#Arg B_1
+s.s $f2, A
+#Arg B
 li $t0, 8
 mul $t0, $t0, 1
 addu $t0, $t0, $fp
 l.s $f2, ($t0)
-s.s $f2, B_1
-#Arg C_1
+s.s $f2, B
+#Arg C
 li $t0, 8
 mul $t0, $t0, 2
 addu $t0, $t0, $fp
 l.s $f2, ($t0)
-s.s $f2, C_1
-#converting to float
-li $t0,10
-mtc1 $t0,$f6
-cvt.s.w $f0,$f6
-#conversion done
-s.s $f0,X_1
-#converting to float
-li $t0,11
-mtc1 $t0,$f6
-cvt.s.w $f0,$f6
-#conversion done
-s.s $f0,Y_1
-#converting to float
-li $t0,13
-mtc1 $t0,$f6
-cvt.s.w $f0,$f6
-#conversion done
-s.s $f0,X_1
-l.s $f0,B_1
-l.s $f2,C_1
+s.s $f2, C
+l.s $f0,B
+l.s $f2,C
 mul.s $f0,$f0,$f2
 s.s $f0,t445
-l.s $f0,A_1
+l.s $f0,A
 l.s $f2,t445
 add.s $f0,$f0,$f2
 s.s $f0,t446
 l.s $f0, t446
 #load saved registers
-lw $ra, -8($fp)
-lw $fp, -16($fp)
-addu $sp, $sp, 16
+lw $ra, ($fp)
+lw $fp, 8($fp)
+addi $sp, $sp, 16
 jr $ra
 .end f1
-
-
-f2:
-#push saved registers
-subu $sp, $sp, 8
-sw $ra, ($sp)
-subu $sp, $sp, 8
-sw $fp, ($sp)
-addu $fp, $sp, 16
-#Arg A_2
-li $t0, 8
-mul $t0, $t0, 0
-addu $t0, $t0, $fp
-l.s $f2, ($t0)
-s.s $f2, A_2
-l.s $f0, A_2
-#load saved registers
-lw $ra, -8($fp)
-lw $fp, -16($fp)
-addu $sp, $sp, 16
-jr $ra
-.end f2
 
 
 main:
@@ -108,7 +64,7 @@ li $t0,3
 mtc1 $t0,$f6
 cvt.s.w $f0,$f6
 #conversion done
-s.s $f0,X_0
+s.s $f0,X
 #push actual argument 5
 subu $sp, $sp, 8
 #converting to float
@@ -133,16 +89,16 @@ mtc1 $t0,$f6
 cvt.s.w $f0,$f6
 #conversion done
 s.s $f0, ($sp)
-jal f1_0
+jal f1
 s.s $f0, t447
 li $t0, 8
 mul $t0, $t0, 3
 addu $sp, $sp, $t0
 l.s $f0,t447
-s.s $f0,A_0
-#print out A_0
+s.s $f0,A
+#print out A
 li $v0, 2
-l.s $f12, A_0
+l.s $f12, A
 syscall
 li $v0, 4
 la $a0, newline

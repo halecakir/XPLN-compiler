@@ -310,7 +310,8 @@
           ((equal op-var 'OUTPUT)
             (format t "~%#print out ~A" p1)
             (format t "~%li $v0, 2")
-            (format t "~%l.s $f12, ~A($fp)" p1)
+            (mk-mips p1 "$f12")
+            ;(format t "~%l.s $f12, ~A($fp)" p1)
             (format t "~%syscall")
             (format t "~%li $v0, 4")  ;print newline
             (format t "~%la $a0, newline")

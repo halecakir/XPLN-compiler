@@ -32,4 +32,19 @@ input n |;|
 X  |:|  |=|  f3 |(| n |)|  |;| 
 output X |;| 
 
-)
+a  |:|  |=|  3 |;| 
+b  |:|  |=|  8 |;| 
+if  |(|  a  |>|  0 and b  |=|  |=|  5 |)| 
+output a  |*|  b |;| 
+output a  |-|  b |;| 
+else
+output 12 |;| 
+endi |;| 
+
+if |(|  |!|  3 |)| 
+output 22 |;| 
+endi |;| 
+
+if |(| a |)| 
+output a |;| 
+endi |;| )

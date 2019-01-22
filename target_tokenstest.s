@@ -1,4 +1,5 @@
 
+
 .data
 
 #.block-0-variables
@@ -9,6 +10,12 @@ t454_0: .word 40
 B_0: .word 48
 N_0: .word 56
 t455_0: .word 64
+t456_0: .word 72
+t457_0: .word 80
+t458_0: .word 88
+t459_0: .word 96
+t460_0: .word 104
+t463_0: .word 112
 #.block-1-variables
 A_1: .word 16
 B_1: .word 24
@@ -209,7 +216,7 @@ sw $ra, ($sp)
 subu $sp, $sp, 8
 sw $fp, ($sp)
 addu $fp, $sp, 8
-subu $sp, $sp, 56
+subu $sp, $sp, 104
 #converting to float
 li $t0,3
 mtc1 $t0,$f6
@@ -249,7 +256,7 @@ l.s $f0,t453_0($fp)
 s.s $f0,A_0($fp)
 #print out A_0
 li $v0, 2
-l.s $f12, A_0($fp)
+l.s $f12,A_0($fp)
 syscall
 li $v0, 4
 la $a0, newline
@@ -263,7 +270,7 @@ l.s $f0,t454_0($fp)
 s.s $f0,B_0($fp)
 #print out B_0
 li $v0, 2
-l.s $f12, B_0($fp)
+l.s $f12,B_0($fp)
 syscall
 li $v0, 4
 la $a0, newline
@@ -288,11 +295,142 @@ l.s $f0,t455_0($fp)
 s.s $f0,X_0($fp)
 #print out X_0
 li $v0, 2
-l.s $f12, X_0($fp)
+l.s $f12,X_0($fp)
 syscall
 li $v0, 4
 la $a0, newline
 syscall
+#converting to float
+li $t0,3
+mtc1 $t0,$f6
+cvt.s.w $f0,$f6
+#conversion done
+s.s $f0,A_0($fp)
+#converting to float
+li $t0,8
+mtc1 $t0,$f6
+cvt.s.w $f0,$f6
+#conversion done
+s.s $f0,B_0($fp)
+l.s $f0,A_0($fp)
+#converting to float
+li $t0,0
+mtc1 $t0,$f6
+cvt.s.w $f2,$f6
+#conversion done
+c.lt.s $f2, $f0
+cfc1 $t0,$25
+andi $t0,1
+mtc1 $t0,$f6
+cvt.s.w $f0,$f6
+s.s $f0,t456_0($fp)
+l.s $f0,B_0($fp)
+#converting to float
+li $t0,5
+mtc1 $t0,$f6
+cvt.s.w $f2,$f6
+#conversion done
+c.eq.s $f0, $f2
+cfc1 $t0,$25
+andi $t0,1
+mtc1 $t0,$f6
+cvt.s.w $f0,$f6
+s.s $f0,t457_0($fp)
+l.s $f0,t456_0($fp)
+l.s $f2,t457_0($fp)
+li.s $f4, 0.0
+c.eq.s $f0, $f4
+cfc1 $t0,$25
+not $t0,$t0
+andi $t0,1
+c.eq.s $f2, $f4
+cfc1 $t1,$25
+not $t1,$t1
+andi $t1,1
+and $t2,$t0,$t1
+mtc1 $t2,$f6
+cvt.s.w $f0,$f6
+s.s $f0,t458_0($fp)
+l.s $f2,t458_0($fp)
+li.s $f4, 0.0
+c.eq.s $f2, $f4
+bc1t l461
+l.s $f0,A_0($fp)
+l.s $f2,B_0($fp)
+mul.s $f0,$f0,$f2
+s.s $f0,t459_0($fp)
+#print out t459_0
+li $v0, 2
+l.s $f12,t459_0($fp)
+syscall
+li $v0, 4
+la $a0, newline
+syscall
+l.s $f0,A_0($fp)
+l.s $f2,B_0($fp)
+sub.s $f0,$f0,$f2
+s.s $f0,t460_0($fp)
+#print out t460_0
+li $v0, 2
+l.s $f12,t460_0($fp)
+syscall
+li $v0, 4
+la $a0, newline
+syscall
+j l462
+l461:
+#print out 12
+li $v0, 2
+#converting to float
+li $t0,12
+mtc1 $t0,$f6
+cvt.s.w $f12,$f6
+#conversion done
+syscall
+li $v0, 4
+la $a0, newline
+syscall
+l462:
+#converting to float
+li $t0,3
+mtc1 $t0,$f6
+cvt.s.w $f2,$f6
+#conversion done
+li.s $f4, 0.0
+c.eq.s $f2, $f4
+cfc1 $t0,$25
+andi $t0,1
+mtc1 $t0,$f6
+cvt.s.w $f0,$f6
+s.s $f0,t463_0($fp)
+l.s $f2,t463_0($fp)
+li.s $f4, 0.0
+c.eq.s $f2, $f4
+bc1t l464
+#print out 22
+li $v0, 2
+#converting to float
+li $t0,22
+mtc1 $t0,$f6
+cvt.s.w $f12,$f6
+#conversion done
+syscall
+li $v0, 4
+la $a0, newline
+syscall
+l464:
+l.s $f2,A_0($fp)
+li.s $f4, 0.0
+c.eq.s $f2, $f4
+bc1t l465
+#print out A_0
+li $v0, 2
+l.s $f12,A_0($fp)
+syscall
+li $v0, 4
+la $a0, newline
+syscall
+l465:
 #load saved registers and free memory
 lw $ra, ($fp)
 lw $fp, -8($fp)

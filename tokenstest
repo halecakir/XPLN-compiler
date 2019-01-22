@@ -25,21 +25,18 @@ endf |;|
 A  |:|  |=|  f1 |(| 3 |,| 4 |,| 5 |)|  |;| 
 output A |;| 
 
-B  |:|  |=|  f2 |(|  |)|  |;| 
-output B |;| 
 
-input n |;| 
-X  |:|  |=|  f3 |(| n |)|  |;| 
-output X |;| 
 
 a  |:|  |=|  3 |;| 
 b  |:|  |=|  8 |;| 
 if  |(|  a  |>|  0 and b  |=|  |=|  5 |)| 
+c  |:|  |=|  12 |;| 
 output a  |*|  b |;| 
 output a  |-|  b |;| 
 else
 output 12 |;| 
 endi |;| 
+
 
 if |(|  |!|  3 |)| 
 output 22 |;| 

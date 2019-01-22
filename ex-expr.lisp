@@ -39,14 +39,21 @@
 
 (defparameter *symtab* (mk-symtab 200)) ; this is a global variable, referred to in the grammar's semantic actions
 
+(defparameter *symtab-scope* (mk-symtab 200)) ; 
+
+(defparameter *enclosing-table* (mk-symtab 200)) ; 
+
 (defparameter *blockno* 0)  ;; increment this everytime a new code block (procedure etc.) is entered.
+
+(defparameter *saved-blockno* 0)  ;; increment this everytime a new code block (procedure etc.) is entered. 
+
+(defparameter *blockno-scope* 0)
+
+(defparameter *saved-blockno-scope* 0)  
 
 (defparameter *ret* nil) 
 
 (defparameter *err* nil)  
-
-(defparameter *saved-blockno* 0)  ;; increment this everytime a new code block (procedure etc.) is entered. 
-
 
 (defparameter *outstream* nil) ;; to control output to file or standard output
 
@@ -67,6 +74,16 @@
 	((integerp name) (setf (gethash (list name *blockno*) *symtab*) (list 'int name)))
 	((symbolp name) (setf (gethash (list name *blockno*) *symtab*) (list 'var name)))
 	(t (setf (gethash (list name *blockno*) *symtab*) (list 'unknown name)))))
+
+  (defun mk-sym-entry-scope (name)
+  "NB: Lisp hash is collision-free, duplicates just replace the older value."
+  (cond ((floatp name) (setf (gethash (list name *blockno-scope*) *symtab-scope*) (list 'float name)))
+	((integerp name) (setf (gethash (list name *blockno-scope*) *symtab-scope*) (list 'int name)))
+	((symbolp name) (setf (gethash (list name *blockno-scope*) *symtab-scope*) (list 'var name)))
+	(t (setf (gethash (list name *blockno-scope*) *symtab-scope*) (list 'unknown name)))))
+
+  (defun add-enclosing-entry(current prev)
+     (setf (gethash current *enclosing-table*)  prev))
 
 (defun sym-get-type (val)
   (first val))
@@ -505,11 +522,38 @@
 (defun reload-block()
   (setf *blockno* *saved-blockno*))
 
-
 (defun turn-main-block ()
   (progn
     (setf *saved-blockno* *blockno*)
     (setf *blockno* 0)))
+
+
+
+(defun add-linked-scope ()
+    (add-enclosing-entry  (+ *saved-blockno-scope* 1) *blockno-scope*))
+
+(defun increment-block-scope()
+  (setf *blockno-scope* *saved-blockno-scope*)
+  (setf *blockno-scope* (+ *blockno-scope* 1))
+  (setf *saved-blockno-scope* *blockno-scope*))
+
+
+(defun remove-locals-scope()
+  (maphash #'(lambda (key val)
+                (cond 
+                  ((and (equal (second key) *blockno-scope*) (equal (sym-get-type val) 'VAR))
+                    (remhash key *symtab-scope*)))) *symtab-scope*))
+
+(defun turn-prev-block-scope()
+  (progn
+    (setf *saved-blockno-scope* *blockno-scope*)
+    (setf *blockno-scope* (gethash *blockno-scope* *enclosing-table*))))
+
+(defun turn-main-scope()
+  (progn
+    (if(> *blockno-scope* *saved-blockno-scope*)
+    (setf *saved-blockno-scope* *blockno-scope*))
+    (setf *blockno-scope* 0)))
 
 (defun ret-found()
   (setf *ret* t))
@@ -521,8 +565,30 @@
   (if (not *ret*) 
     (setf *err* (list fun "there is no return keyword"))
     nil))
-;;;; LALR data 
 
+(defun check-id-error(id)
+(let 
+  ((scope *blockno-scope*))
+  (print-scope-table)
+  (print-enclosing-scope)
+  (format t "~% IDENTIFIER : ~A SCOPE : ~A" id *blockno-scope*)
+  (cond ((symbolp id)
+        (loop while (and (not (gethash (list id scope) *symtab-scope*)) (numberp scope)) do
+          (setf scope (gethash scope *enclosing-table*)))
+        (cond ((not scope) 
+              (setf *err* (list id "identifier not found"))
+              (format t "~% identifier not found IDENTIFIER : ~A SCOPE : ~A" id *blockno-scope*)))))))
+
+(defun print-scope-table()
+          (format t "~2%SCOPE  table at IC level:~2%key         value~%(name blockno)  (type value)~%--------------------")
+          (maphash #'(lambda (key val)(format t "~%~A : ~A" key val)) *symtab-scope*)
+)
+
+(defun print-enclosing-scope()
+          (format t "~2%ENCLOSING SCOPE  table at IC level:~2%key         value~%--------------------")
+          (maphash #'(lambda (key val)(format t "~%~A : ~A" key val)) *enclosing-table*)
+)
+;;;; LALR data 
 
 (defparameter grammar
 '(
@@ -573,7 +639,8 @@
 
   (factor               --> ID                                                  #'(lambda (ID) 
                                                                                 (progn 
-                                                                                  (mk-sym-entry (t-get-val ID))
+                                                                                 ; (mk-sym-entry (t-get-val ID))
+                                                                                  (check-id-error (t-get-val ID)) 
                                                                                   (list 
                                                                                     (mk-place (blocked-symbol (t-get-val ID)))
                                                                                     (mk-code nil)))))
@@ -630,10 +697,12 @@
   (function_def         --> FUN ID LP plist_def RP stmts ENDF END               #'(lambda (FUN ID LP plist_def RP  stmts ENDF END)  
                                                                                 (progn
                                                                                   (turn-main-block)
+                                                                                  (remove-locals-scope)
+                                                                                  (turn-main-scope)
+                                                                                  (check-ret-error (t-get-val ID))
                                                                                   (list
                                                                                     (mk-code
-                                                                                      (append
-                                                                                        (check-ret-error (t-get-val ID))
+                                                                                      (append                                                                                        
                                                                                         (mk-begin (t-get-val ID))
                                                                                         (mk-1ac 'label (t-get-val ID))
                                                                                         (mk-1ac 'init-stack (get-locals-size (var-get-block plist_def)))
@@ -648,6 +717,7 @@
   (plist_def            --> plist_def COMMA ID                                  #'(lambda (plist_def COMMA ID)
                                                                                 (progn
                                                                                   (mk-sym-entry (t-get-val ID))
+                                                                                  (mk-sym-entry-scope (t-get-val ID))
                                                                                   (ret-clear)
                                                                                   ;(format t "~%Created2 ~A" (t-get-val ID))
                                                                                   (list
@@ -664,10 +734,13 @@
   (plist_def            --> ID                                                  #'(lambda (ID)
                                                                                 (progn
                                                                                   ;(format t "~%Created1 ~A" (t-get-val ID))    
-                                                                                  (reload-block)                                                                                                                                                                  
+                                                                                  (reload-block)
                                                                                   (increment-block)
+
+                                                                                  (increment-block-scope) ;scoping
                                                                                   (ret-clear)
                                                                                   (mk-sym-entry (t-get-val ID))
+                                                                                  (mk-sym-entry-scope (t-get-val ID))
                                                                                   (list
                                                                                     (mk-code 
                                                                                       (append
@@ -677,8 +750,9 @@
 
   (plist_def            -->                                                     #'(lambda ()
                                                                                   (progn
-                                                                                    (reload-block)                                                                                                                                                                  
+                                                                                    (reload-block) 
                                                                                     (increment-block)
+                                                                                    (increment-block-scope) ;scoping
                                                                                     (ret-clear)
                                                                                     (list
                                                                                       (mk-code nil)
@@ -878,6 +952,7 @@
   (assign_expr          --> ID COLON EQLS or_expr                               #'(lambda (ID COLON EQLS or_expr)
                                                                                 (progn 
                                                                                   (mk-sym-entry (t-get-val ID))
+                                                                                  (mk-sym-entry-scope (t-get-val ID))
                                                                                   (list 
                                                                                     (mk-code (append  
                                                                                       (var-get-code or_expr) 
@@ -904,9 +979,12 @@
                                                                                       (mk-0ac 'nop)))
                                                                                    (mk-place nil)))))     
   
-  (selection_statement  --> IF LP expression RP stmts ENDI END                  #'(lambda (IF LP expression RP stmts ENDI END)
+  (selection_statement  --> blocked_structure LP expression RP stmts ENDI END   #'(lambda (blocked_structure LP expression RP stmts ENDI END)
                                                                                 (let  
                                                                                   ((label1 (newlabel)))
+                                                                                  ; remove locals
+                                                                                  (remove-locals-scope)
+                                                                                  (turn-prev-block-scope)   ;scoping                                                                
                                                                                   (list
                                                                                     (mk-code (append
                                                                                       (var-get-code expression)
@@ -915,25 +993,30 @@
                                                                                       (mk-1ac 'label label1)))
                                                                                     (mk-place nil)))))
                                                                                       
-  (selection_statement  --> IF LP expression RP stmts ELSE stmts ENDI END       #'(lambda (IF LP expression RP stmts1 ELSE stmts2 ENDI END)
-                                                                                (let  
-                                                                                  ((label1 (newlabel))
-                                                                                  (label2 (newlabel)))
-                                                                                  (list
-                                                                                    (mk-code (append
-                                                                                      (var-get-code expression)
-                                                                                      (mk-2ac 'if (var-get-place expression) label1)
-                                                                                      (var-get-code stmts1)
-                                                                                      (mk-1ac 'jump label2)
-                                                                                      (mk-1ac 'label label1)
-                                                                                      (var-get-code stmts2)
-                                                                                      (mk-1ac 'label label2)))
-                                                                                    (mk-place nil)))))
+  (selection_statement  --> blocked_structure LP expression RP stmts ELSE stmts ENDI END        #'(lambda (blocked_structure LP expression RP stmts1 ELSE stmts2 ENDI END)
+                                                                                                (let  
+                                                                                                  ((label1 (newlabel))
+                                                                                                  (label2 (newlabel)))
+                                                                                                  (remove-locals-scope)
+                                                                                                  (turn-prev-block-scope) ;scoping  
+                                                                                                  (list
+                                                                                                    (mk-code (append
+                                                                                                      (var-get-code expression)
+                                                                                                      (mk-2ac 'if (var-get-place expression) label1)
+                                                                                                      (var-get-code stmts1)
+                                                                                                      (mk-1ac 'jump label2)
+                                                                                                      (mk-1ac 'label label1)
+                                                                                                      (var-get-code stmts2)
+                                                                                                      (mk-1ac 'label label2)))
+                                                                                                    (mk-place nil)))))
 
-  (iter_statement       --> WHILE LP expression RP stmts ENDW END               #'(lambda (WHILE LP expression RP stmts ENDW END)
+
+  (iter_statement       --> blocked_structure LP expression RP stmts ENDW END               #'(lambda (WHILE LP expression RP stmts ENDW END)
                                                                                 (let  
                                                                                   ((label1 (newlabel))
                                                                                   (label2 (newlabel)))
+                                                                                  (remove-locals-scope)
+                                                                                  (turn-prev-block-scope)   ;scoping 
                                                                                   (list
                                                                                     (mk-code (append
                                                                                       (mk-1ac 'label label1)
@@ -944,24 +1027,14 @@
                                                                                       (mk-1ac 'label label2)))
                                                                                     (mk-place nil)))))
 
-  (iter_statement       --> DO stmts WHILE LP expression RP ENDDO END           #'(lambda (DO stmts WHILE LP expr RP ENDDO END)
-                                                                                (let  
-                                                                                  ((label1 (newlabel))
-                                                                                  (label2 (newlabel)))
-                                                                                  (list
-                                                                                    (mk-code (append
-                                                                                      (mk-1ac 'label label1)
-                                                                                      (var-get-code stmts)
-                                                                                      (var-get-code expression)
-                                                                                      (mk-2ac 'if (var-get-place expression) label2)                                                     
-                                                                                      (mk-1ac 'jump label1)
-                                                                                      (mk-1ac 'label label2)))
-                                                                                    (mk-place nil)))))   
 
-  (iter_statement       --> FOR LP expr_statement expr_statement RP stmts ENDFOR END      #'(lambda (FOR LP expr_statement1 expr_statement2 RP stmts ENDFOR END)
+
+  (iter_statement       --> blocked_structure LP expr_statement expr_statement RP stmts ENDFOR END      #'(lambda (FOR LP expr_statement1 expr_statement2 RP stmts ENDFOR END)
                                                                                           (let  
                                                                                             ((label1 (newlabel))
                                                                                             (label2 (newlabel)))
+                                                                                            (remove-locals-scope)
+                                                                                            (turn-prev-block-scope)   ;scoping 
                                                                                             (list
                                                                                               (mk-code (append
                                                                                                 (var-get-code expr_statement1)
@@ -973,10 +1046,12 @@
                                                                                                 (mk-1ac 'label label2)))
                                                                                               (mk-place nil)))))    
 
-  (iter_statement       --> FOR LP expr_statement expr_statement expression RP stmts ENDFOR END   #'(lambda (FOR LP expr_statement1 expr_statement2 expression RP stmts ENDFOR END)
+  (iter_statement       --> blocked_structure LP expr_statement expr_statement expression RP stmts ENDFOR END   #'(lambda (FOR LP expr_statement1 expr_statement2 expression RP stmts ENDFOR END)
                                                                                                   (let  
                                                                                                     ((label1 (newlabel))
                                                                                                     (label2 (newlabel)))
+                                                                                                    (remove-locals-scope)
+                                                                                                    (turn-prev-block-scope)   ;scoping 
                                                                                                     (list
                                                                                                       (mk-code (append
                                                                                                         (var-get-code expr_statement1)
@@ -988,6 +1063,38 @@
                                                                                                         (mk-1ac 'jump label1)
                                                                                                         (mk-1ac 'label label2)))
                                                                                                       (mk-place nil)))))                                                                                                                                                                      
+
+  (blocked_structure    --> WHILE                                            #'(lambda (KEYWORD)
+                                                                                  (progn
+                                                                                    (add-linked-scope)
+                                                                                    (increment-block-scope)
+                                                                                    (list 
+                                                                                      (mk-code nil)
+                                                                                      (mk-place nil))))) 
+
+  (blocked_structure    --> IF                                                    #'(lambda (KEYWORD)
+                                                                                  (progn
+                                                                                    (add-linked-scope)
+                                                                                    (increment-block-scope)
+                                                                                    (list 
+                                                                                      (mk-code nil)
+                                                                                      (mk-place nil)))))
+
+  (blocked_structure    --> DO                                                    #'(lambda (KEYWORD)
+                                                                                  (progn
+                                                                                    (add-linked-scope)
+                                                                                    (increment-block-scope)
+                                                                                    (list 
+                                                                                      (mk-code nil)
+                                                                                      (mk-place nil))))) 
+  
+  (blocked_structure    --> FOR                                                   #'(lambda (KEYWORD)
+                                                                                  (progn
+                                                                                    (add-linked-scope)
+                                                                                    (increment-block-scope)
+                                                                                    (list 
+                                                                                      (mk-code nil)
+                                                                                      (mk-place nil)))))                                                                                                                                                                                                                                                         
 
   (ret_statement        --> RETURN expression END                               #'(lambda (RETURN expression END)
                                                                                 (progn
@@ -1010,6 +1117,7 @@
   (input_statement      --> INPUT ID END                                        #'(lambda (INPUT ID END)
                                                                                 (progn
                                                                                   (mk-sym-entry (t-get-val ID))
+                                                                                  (mk-sym-entry-scope (t-get-val ID))                                                                                 
                                                                                   (list
                                                                                     (mk-code 
                                                                                       (append

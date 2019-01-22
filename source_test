@@ -14,10 +14,22 @@ b := 2;
 return a / b;
 endf;
 
+fun f3(n)
+sum := 0;
+for(i:=0; i <= n; i:=i+1)
+    sum := sum + i;
+endfor;
+return sum;
+endf;
+
 A := f1(3,4,5);
 output A;
 
 B := f2();
 output B;
+
+input n;
+X := f3(n);
+output X;
 
 

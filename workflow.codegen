@@ -17,6 +17,8 @@ ex-expr.lexer source_test > tokenstest
 (trace newtemp)
 (trace mk-3ac-condi)
 (trace mk-3ac-condx)
+(trace blocked-symbol)
+(trace get-locals-size)
 
 (trace target-code-mips)
 (trace mk-sym-entry)

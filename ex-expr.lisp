@@ -41,6 +41,10 @@
 
 (defparameter *blockno* 0)  ;; increment this everytime a new code block (procedure etc.) is entered.
 
+(defparameter *ret* nil) 
+
+(defparameter *err* nil)  
+
 (defparameter *saved-blockno* 0)  ;; increment this everytime a new code block (procedure etc.) is entered. 
 
 
@@ -99,12 +103,13 @@
                               (PRINT "print")
                               (CALL "jal")
                               (GETRETURN "getreturn")
-                              (PRESERVE "preserve")
+                              (INIT-STACK "init-stack")
                               (GETPARAM "getparam")
                               (END "end")
                               (RETURN  "return")
                               (LOAD "load")
-                              (OUTPUT "output"))) ; intstruction set corr.
+                              (OUTPUT "output")
+                              (CLEAN-AND-RETURN "c-and-r"))) ; intstruction set corr.
 
  ;; MIPS is case-sensitive, so we use strings to map TAC code to MIPS
  ;; it also needs to know whether we use floating point or integer op (.s means float)
@@ -147,7 +152,7 @@
   "create li if constant or l.s if not"
   (if (numberp p)
     (mk-imm register p)  
-    (format t "~%l.s ~A,~A" register p)))
+    (format t "~%l.s ~A,~A($fp)" register p)))
 
 (defun tac-get-mips (op)
   (second (assoc op *tac-to-mips*)))
@@ -160,7 +165,7 @@
     (mk-mips p2 "$f0")
     (mk-mips p3 "$f2")
     (format t "~%~A $f0,$f0,$f2" op)
-    (format t "~%s.s $f0,~A" p1)))
+    (format t "~%s.s $f0,~A($fp)" p1)))
     
 
 
@@ -189,7 +194,7 @@
     (format t "~%andi $t0,1")
     (format t "~%mtc1 $t0,$f6") ; using $f6 is temp value converter
     (format t "~%cvt.s.w $f0,$f6"); MIPS internal conversion to float
-    (format t "~%s.s $f0,~A" p1)))
+    (format t "~%s.s $f0,~A($fp)" p1)))
 
 (defun mk-mips-3ac-condx (i)
   (let ((op (tac-get-mips (first i)))
@@ -214,7 +219,7 @@
             (format t "~%or $t2,$t0,$t1")))
     (format t "~%mtc1 $t2,$f6") ; using $f6 is temp value converter
     (format t "~%cvt.s.w $f0,$f6"); MIPS internal conversion to float
-    (format t "~%s.s $f0,~A" p1)))
+    (format t "~%s.s $f0,~A($fp)" p1)))
 
 (defun unary-not (op p1 p2)
   (mk-mips p2 "$f2")
@@ -224,14 +229,14 @@
   (format t "~%andi $t0,1")
   (format t "~%mtc1 $t0,$f6") 
   (format t "~%cvt.s.w $f0,$f6")
-  (format t "~%s.s $f0,~A" p1))
+  (format t "~%s.s $f0,~A($fp)" p1))
 
 (defun unary-sub (op p1 p2)
   (mk-mips p2 "$f2")
   (format t "~%#loading dummy zero float to $f0")
   (format t "~%l.s $f0,zzeerroo")
   (format t "~%~A $f0,$f0,$f2" op)
-  (format t "~%s.s $f0,~A" p1))
+  (format t "~%s.s $f0,~A($fp)" p1))
 
 (defun branch-not-true (op p1 p2)
   (mk-mips p1 "$f2")
@@ -251,7 +256,7 @@
           ((equal op-var 'IF)
             (branch-not-true op p1 p2))
           ((equal op-var 'GETRETURN)
-            (format t "~%s.s $f0, ~A" p1)
+            (format t "~%s.s $f0, ~A($fp)" p1)
             (format t "~%li $t0, 8")
             (format t "~%mul $t0, $t0, ~A" p2)
             (format t "~%addu $sp, $sp, $t0"))
@@ -261,7 +266,7 @@
             (format t "~%mul $t0, $t0, ~A" p2)
             (format t "~%addu $t0, $t0, $fp")
             (format t "~%l.s $f2, ($t0)")
-            (format t "~%s.s $f2, ~A" p1)))))
+            (format t "~%s.s $f2, ~A($fp)" p1)))))
 
 (defun mk-mips-1ac (i)
   (let ((op (tac-get-mips (first i)))
@@ -273,7 +278,7 @@
             (format t "~%~A ~A" op (string-downcase p1)))
           ((equal op-var 'PRINT)
             (format t "~%li $v0, 2")
-            (format t "~%l.s $f12, ~A" p1)
+            (format t "~%l.s $f12, ~A($fp)" p1)
             (format t "~%syscall")
             (format t "~%li $v0, 4")  ;print newline
             (format t "~%la $a0, newline")
@@ -288,41 +293,53 @@
           ((equal op-var 'END)
             (format t "~%.end ~A" (string-downcase p1)))
           ((equal op-var 'RETURN)
-            (format t "~%l.s $f0, ~A" p1))
+            (format t "~%l.s $f0, ~A($fp)" p1))
+          ((equal op-var 'INIT-STACK)
+            (format t "~%#push saved registers")
+            (format t "~%subu $sp, $sp, 8")
+            (format t "~%sw $ra, ($sp)")
+            (format t "~%subu $sp, $sp, 8")
+            (format t "~%sw $fp, ($sp)")
+            (format t "~%addu $fp, $sp, 8")
+            (format t "~%subu $sp, $sp, ~A" p1))
+          ((equal op-var 'CLEAN-AND-RETURN)
+            (format t "~%#clean stack memory and return")
+            (format t "~%addu $sp, $sp, 16")
+            (format t "~%addu $sp, $sp, ~A" p1)
+            (format t "~%jr $ra"))
           ((equal op-var 'OUTPUT)
             (format t "~%#print out ~A" p1)
             (format t "~%li $v0, 2")
-            (format t "~%l.s $f12, ~A" p1)
+            (format t "~%l.s $f12, ~A($fp)" p1)
             (format t "~%syscall")
             (format t "~%li $v0, 4")  ;print newline
             (format t "~%la $a0, newline")
-            (format t "~%syscall")))))
+            (format t "~%syscall"))
+           ((equal op-var 'INPUT)
+            (format t "~%#read float ~A" p1)
+            (format t "~%li $v0, 4")  ;print welcome string
+            (format t "~%la $a0, input")
+            (format t "~%syscall")
+            (format t "~%li $v0, 6")
+            (format t "~%syscall")
+            (format t "~%s.s $f0, ~A($fp)" p1)))))
 
 (defun mk-mips-0ac (i)
   (let ((op (tac-get-mips (first i)))
         (op-var (first i)))
     (cond ((equal op-var 'NOP)
             (format t "~%~A" op))
-          ((equal op-var 'PRESERVE)
-            (format t "~%#push saved registers")
-            (format t "~%subu $sp, $sp, 8")
-            (format t "~%sw $ra, ($sp)")
-            (format t "~%subu $sp, $sp, 8")
-            (format t "~%sw $fp, ($sp)")
-            (format t "~%addu $fp, $sp, 8"))
           ((equal op-var 'LOAD)
-            (format t "~%#load saved registers")
+            (format t "~%#load saved registers and free memory")
             (format t "~%lw $ra, ($fp)")
-            (format t "~%lw $fp, -8($fp)")
-            (format t "~%addu $sp, $sp, 16")
-            (format t "~%jr $ra")))))
+            (format t "~%lw $fp, -8($fp)")))))
   
 
 (defun mk-mips-2copy (i)
   (let ((p1 (first i))
 	(p2 (second i)))
     (mk-mips p2 "$f0")
-    (format t "~%s.s $f0,~A" p1)))
+    (format t "~%s.s $f0,~A($fp)" p1)))
 
 (defun get-locals-main ()
   (maphash #'(lambda (key val)
@@ -338,26 +355,27 @@
         (format t "~%~A_~A: .word ~A" (sym-get-value (gethash key  *symtab*)) (second key) counter)
         (setf counter (+ counter 8)))))))        
     
-    
+(defun get-locals-size(n)
+  (let ((counter 0))
+    (loop for key being the hash-keys of *symtab*
+      do (cond 
+          ((and (equal (second key) n) (equal (sym-get-type (gethash key  *symtab*)) 'VAR))
+            (setf counter (+ counter 8)))))
+    counter))
+
 
 (defun create-data-segment ()
   "only for variables; numbers will use immmediate loading rather than lw or l.s."
   (format t "~2%.data~%")
-  ;(maphash #'(lambda (key val)
-	;       (if (equal (sym-get-type val) 'VAR) (format t "~%~A_~A: .float 0.0" (sym-get-value val) (second key))))
-	;   *symtab*)
-
-  (format t "~%#main-variables")
-  (get-locals-main)
   
-  (loop for x from 1 to (identity *saved-blockno*)
+  (loop for x from 0 to (identity *saved-blockno*)
    do (format t "~%#.block-~A-variables" x)
       (get-locals-functions x)
    )
-
   (format t "~%#helper-variables")
   (format t "~%zzeerroo: .float 0.0") ; MIPS has no float point zero constant like $zero for ints. bad bad
-  (format t "~%newline: .asciiz \"\\n\""))
+  (format t "~%newline: .asciiz \"\\n\"")
+  (format t "~%input: .asciiz \"Enter input :\""))
 
 
 (defun create-code-segment (code)
@@ -403,13 +421,22 @@
   (create-code-segment code)
   (if (stringp *outstream*) (dribble))) ; must close dribble
 
+(defun error-print()
+  (format t "~%Error in ~A: ~A" (first *err*) (second *err*))
+)
+
 (defun tac-to-rac (code)
-  (format t "~2%Symbol table at IC level:~2%key         value~%(name blockno)  (type value)~%--------------------")
-  (maphash #'(lambda (key val)(format t "~%~A : ~A" key val)) *symtab*)
-  (format t  "~2%TAC IC code:~%")
-  (pprint-code code)
-  (format t "~2%QtSpim target code:")
-  (map-to-mips code))
+  (cond ((not *err*)
+          (format t "~2%Symbol table at IC level:~2%key         value~%(name blockno)  (type value)~%--------------------")
+          (maphash #'(lambda (key val)(format t "~%~A : ~A" key val)) *symtab*)
+          (format t  "~2%TAC IC code:~%")
+          (pprint-code code)
+          (format t "~2%QtSpim target code:")
+          (map-to-mips code))
+        (t 
+          (if (stringp *outstream*) (dribble *outstream*))  ; open out
+          (error-print)
+          (if (stringp *outstream*) (dribble))))) ; must close dribble
 
 
 ;; some aux functions  to retrieve amd make feature values for grammar variables
@@ -423,6 +450,9 @@
 (defun mk-place (v)
   (list 'place v))
 
+(defun mk-block-no (v)
+  (list 'block v))
+
 (defun mk-code (v)
   (list 'code v))
 
@@ -431,7 +461,8 @@
 
 (defun var-get-code (v)
   (second (assoc 'code v)))
-
+(defun var-get-block (v)
+  (second (assoc 'block v)))
 (defun mk-0ac (op)
   (wrap (list '0ac op)))
 
@@ -473,13 +504,24 @@
 (defun reload-block()
   (setf *blockno* *saved-blockno*))
 
+
 (defun turn-main-block ()
   (progn
     (setf *saved-blockno* *blockno*)
     (setf *blockno* 0)))
 
+(defun ret-found()
+  (setf *ret* t))
 
+(defun ret-clear()
+  (setf *ret*  nil))
+
+(defun check-ret-error(fun)
+  (if (not *ret*) 
+    (setf *err* (list fun "there is no return keyword"))
+    nil))
 ;;;; LALR data 
+
 
 (defparameter grammar
 '(
@@ -487,14 +529,18 @@
 					                                                                      (tac-to-rac 
                                                                                   (mk-code 
                                                                                     (append
+                                                                                      (mk-1ac 'init-stack (get-locals-size 0))
                                                                                       (var-get-code statement)
-                                                                                      (var-get-code entries))))))
+                                                                                      (var-get-code entries)
+                                                                                      (mk-0ac 'load))))))
 
   (start                --> statement                                           #'(lambda (statement) 
 					                                                                      (tac-to-rac 
                                                                                   (mk-code 
                                                                                     (append
-                                                                                      (var-get-code statement))))))                                                                                     
+                                                                                      (mk-1ac 'init-stack (get-locals-size 0))
+                                                                                      (var-get-code statement)
+                                                                                      (mk-0ac 'load))))))                                                                                     
 
   (entries              --> entries entry                                       #'(lambda (entries entry)
                                                                                 (list
@@ -559,7 +605,7 @@
                                                                                         (var-get-code plist_call)
                                                                                       )
                                                                                     )
-                                                                                    (mk-place (+ (var-get-place plist_call) 1 ))
+                                                                                    (mk-place (+ (var-get-place plist_call) 1 ))                                                                              
                                                                                   )
                                                                                 )))
 
@@ -576,22 +622,24 @@
                                                                                   )
                                                                                 )))         
 
-  (plist_call           -->                                                     #'(lambda ()(progn (list (mk-code nil) (mk-place 0))))) ;epsilon                                                                                    
+  (plist_call           -->                                                     #'(lambda ()(progn (list (mk-code nil) (mk-place 0)))))                                                                                     
 
 
   
-  (function_def         --> FUN ID LP plist_def RP stmts ENDF END                #'(lambda (FUN ID LP plist_def RP  stmts ENDF END)  ;;function ve variable lar ayni adda ise ne yapilmali?
+  (function_def         --> FUN ID LP plist_def RP stmts ENDF END               #'(lambda (FUN ID LP plist_def RP  stmts ENDF END)  
                                                                                 (progn
                                                                                   (turn-main-block)
                                                                                   (list
                                                                                     (mk-code
                                                                                       (append
+                                                                                        (check-ret-error (t-get-val ID))
                                                                                         (mk-begin (t-get-val ID))
                                                                                         (mk-1ac 'label (t-get-val ID))
-                                                                                        (mk-0ac 'preserve)
+                                                                                        (mk-1ac 'init-stack (get-locals-size (var-get-block plist_def)))
                                                                                         (var-get-code plist_def)
                                                                                         (var-get-code stmts)
                                                                                         (mk-0ac 'load)
+                                                                                        (mk-1ac 'clean-and-return (get-locals-size (var-get-block plist_def)))
                                                                                         (mk-1ac 'end (t-get-val ID))
                                                                                         (mk-end (t-get-val ID))))
                                                                                     (mk-place nil)))))
@@ -599,6 +647,7 @@
   (plist_def            --> plist_def COMMA ID                                  #'(lambda (plist_def COMMA ID)
                                                                                 (progn
                                                                                   (mk-sym-entry (t-get-val ID))
+                                                                                  (ret-clear)
                                                                                   ;(format t "~%Created2 ~A" (t-get-val ID))
                                                                                   (list
                                                                                     (mk-code
@@ -608,6 +657,7 @@
                                                                                       )
                                                                                     )
                                                                                     (mk-place (+ (var-get-place plist_def) 1 ))
+                                                                                    (mk-block-no *blockno*)
                                                                                   ))))
 
   (plist_def            --> ID                                                  #'(lambda (ID)
@@ -615,20 +665,24 @@
                                                                                   ;(format t "~%Created1 ~A" (t-get-val ID))    
                                                                                   (reload-block)                                                                                                                                                                  
                                                                                   (increment-block)
+                                                                                  (ret-clear)
                                                                                   (mk-sym-entry (t-get-val ID))
                                                                                   (list
                                                                                     (mk-code 
                                                                                       (append
                                                                                         (mk-2ac 'getparam (blocked-symbol(t-get-val ID)) 1)))
-                                                                                    (mk-place 2)))))
+                                                                                    (mk-place 2)
+                                                                                    (mk-block-no *blockno*)))))
 
   (plist_def            -->                                                     #'(lambda ()
                                                                                   (progn
                                                                                     (reload-block)                                                                                                                                                                  
                                                                                     (increment-block)
+                                                                                    (ret-clear)
                                                                                     (list
                                                                                       (mk-code nil)
-                                                                                      (mk-place nil)))))                                                                                                                                                              
+                                                                                      (mk-place nil)
+                                                                                      (mk-block-no *blockno*)))))                                                                                                                                                              
 
   (unary_expr           --> SUB unary_expr                                      #'(lambda (SUB unary_expr) 
                                                                                 (let 
@@ -935,12 +989,14 @@
                                                                                                       (mk-place nil)))))                                                                                                                                                                      
 
   (ret_statement        --> RETURN expression END                               #'(lambda (RETURN expression END)
-                                                                                (list 
-                                                                                    (mk-code 
-                                                                                      (append
-                                                                                        (var-get-code expression)
-                                                                                        (mk-1ac 'return (var-get-place expression))))
-                                                                                    (mk-place nil))))
+                                                                                (progn
+                                                                                  (ret-found)
+                                                                                  (list 
+                                                                                      (mk-code 
+                                                                                        (append
+                                                                                          (var-get-code expression)
+                                                                                          (mk-1ac 'return (var-get-place expression))))
+                                                                                      (mk-place nil)))))
 
   (output_statement     --> OUTPUT expression END                               #'(lambda (OUTPUT expression END)
                                                                                 (list 
@@ -949,6 +1005,17 @@
                                                                                       (var-get-code expression)
                                                                                       (mk-1ac 'output (var-get-place expression))))
                                                                                   (mk-place nil))))
+
+  (input_statement      --> INPUT ID END                                        #'(lambda (INPUT ID END)
+                                                                                (progn
+                                                                                  (mk-sym-entry (t-get-val ID))
+                                                                                  (list
+                                                                                    (mk-code 
+                                                                                      (append
+                                                                                        (mk-1ac 'input (blocked-symbol(t-get-val ID)))))
+                                                                                    (mk-place nil)))))
+
+  (statement            --> input_statement                                     #'(lambda (s) (identity s)))
 
   (statement            --> output_statement                                    #'(lambda (s) (identity s)))
 
@@ -962,7 +1029,7 @@
 
 ))
 
-(defparameter lexforms '(ID END COLON EQLS LP RP ADD SUB MULT DIV GRT LST AND OR NOT IF ENDI ELSE WHILE ENDW DO ENDDO FOR ENDFOR COMMA FUN ENDF RETURN OUTPUT))
+(defparameter lexforms '(ID END COLON EQLS LP RP ADD SUB MULT DIV GRT LST AND OR NOT IF ENDI ELSE WHILE ENDW DO ENDDO FOR ENDFOR COMMA FUN ENDF RETURN OUTPUT INPUT))
 
 (defparameter lexicon '(
 	          (\; END) ;; all but ID goes in the lexicon
@@ -995,6 +1062,7 @@
       (endf ENDF)
       (return RETURN)
       (output OUTPUT)
+      (input INPUT)
 		  ))
   ;; if you change the end-marker, change its hardcopy above in lexicon above as well.
   ;; (because LALR parser does not evaluate its lexicon symbols---sorry.)

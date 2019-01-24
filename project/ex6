@@ -1,0 +1,14 @@
+
+
+
+x := 0;
+
+fun noreturnfun(a,b,c)
+    if(! (a and b and c))
+        output 1;
+    else
+        output 0;
+    endi;
+endf;
+
+noreturnfun(x, x, x);

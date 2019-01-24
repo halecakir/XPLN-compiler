@@ -27,6 +27,7 @@ A := f1(3,4,5);
 output A;
 
 
+
 a := 3;
 b := 8;
 if ( a > 0 and b == 5)
@@ -46,3 +47,4 @@ if(a)
 output a;
 endi;
 
+f3(10);

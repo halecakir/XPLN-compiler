@@ -1,0 +1,31 @@
+
+input height;
+input mass; 
+
+fun bmi(body, mass)
+    return body/mass;
+endf;
+
+
+
+
+if(bmi(height, mass) <= 18)
+    output 1;
+endi;
+if(bmi(height, mass) > 18 and bmi(height, mass) <= 25)
+    output 2;
+endi;
+if(bmi(height, mass) > 25 and bmi(height, mass) <= 30)
+    output 3;
+endi;
+if(bmi(height, mass) > 30)
+    output 4;
+endi;
+
+
+if(bmi(height, mass) <= 18)
+    output 1;
+else
+    output 5;
+endi;
+

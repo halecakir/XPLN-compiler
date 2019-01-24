@@ -1,9 +1,12 @@
 (load "ex-expr")
 (make-lalrparser)
+(target-code-mips "ex9_tokens" t)
+
+
 (target-code-mips "tokenstest" t)
 (target-code-mips "tokens2" t)
 
-ex-expr.lexer source_test > tokenstest
+ex-expr.lexer ex9 > ex9_tokens
 
 (trace mk-place)
 (trace mk-code)

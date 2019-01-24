@@ -1,0 +1,50 @@
+(
+x  |:|  |=|  3 |;| 
+
+fun f1  |(| a |,|  b |,|  c |)|  
+x  |:|  |=|  10 |;| 
+y  |:|  |=|  11 |;| 
+X  |:|  |=|  13 |;| 
+return a  |+|  b  |*|  c |;| 
+endf |;| 
+
+fun f2  |(|  |)| 
+a  |:|  |=|  10 |;| 
+b  |:|  |=|  2 |;|  
+return a  |/|  b |;| 
+endf |;| 
+
+fun f3 |(| n |)| 
+sum  |:|  |=|  0 |;| 
+for |(| i |:|  |=| 0 |;|  i  |<|  |=|  n |;|  i |:|  |=| i |+| 1 |)| 
+    output sum |;| 
+    sum  |:|  |=|  sum  |+|  i |;| 
+endfor |;| 
+return sum |;| 
+endf |;| 
+
+A  |:|  |=|  f1 |(| 3 |,| 4 |,| 5 |)|  |;| 
+output A |;| 
+
+
+
+a  |:|  |=|  3 |;| 
+b  |:|  |=|  8 |;| 
+if  |(|  a  |>|  0 and b  |=|  |=|  5 |)| 
+c  |:|  |=|  12 |;| 
+output a  |*|  b |;| 
+output a  |-|  b |;| 
+else
+output 12 |;| 
+endi |;| 
+
+
+if |(|  |!|  3 |)| 
+output 22 |;| 
+endi |;| 
+
+if |(| a |)| 
+output a |;| 
+endi |;| 
+
+f3 |(| 10 |)|  |;| )

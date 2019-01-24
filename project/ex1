@@ -1,0 +1,14 @@
+
+input fn;
+
+fun factorialrecursive (num)
+    if(num == 0 or num == 1)
+        return 1;
+    endi;
+    return num * factorialrecursive(num - 1);
+endf;
+
+
+
+result := factorialrecursive(fn);
+output result;

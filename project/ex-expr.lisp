@@ -277,6 +277,9 @@
             (format t "~%li $t0, 8")
             (format t "~%mul $t0, $t0, ~A" p2)
             (format t "~%addu $sp, $sp, $t0"))
+          ((equal op-var 'RETURN)
+            (mk-mips p1 "$f0")
+            (format t "~%j ~A" (string-downcase p2)))
           ((equal op-var 'GETPARAM)
             (format t "~%#Arg ~A" p1)
             (format t "~%li $t0, 8")
@@ -295,7 +298,8 @@
             (format t "~%~A ~A" op (string-downcase p1)))
           ((equal op-var 'PRINT)
             (format t "~%li $v0, 2")
-            (format t "~%l.s $f12, ~A($fp)" p1)
+            (mk-mips p1 "$f12")
+            ;(format t "~%l.s $f12, ~A($fp)" p1)
             (format t "~%syscall")
             (format t "~%li $v0, 4")  ;print newline
             (format t "~%la $a0, newline")
@@ -309,8 +313,7 @@
             (format t "~%~A ~A" op (string-downcase p1)))
           ((equal op-var 'END)
             (format t "~%.end ~A" (string-downcase p1)))
-          ((equal op-var 'RETURN)
-            (format t "~%l.s $f0, ~A($fp)" p1))
+            ;(format t "~%l.s $f0, ~A($fp)" p1))
           ((equal op-var 'INIT-STACK)
             (format t "~%#push saved registers")
             (format t "~%subu $sp, $sp, 8")
@@ -588,6 +591,20 @@
           (format t "~2%ENCLOSING SCOPE  table at IC level:~2%key         value~%--------------------")
           (maphash #'(lambda (key val)(format t "~%~A : ~A" key val)) *enclosing-table*)
 )
+
+
+(defparameter *lastretlabel* nil)
+(defparameter *lastretblock* -1)
+
+(defun generatelabel()
+(let ((s nil))
+  (cond ((not (equal *lastretblock* *blockno*))
+      (setf  *lastretblock* *blockno*)
+      (setf *lastretlabel* (newlabel))))
+  *lastretlabel*)
+)
+
+
 ;;;; LALR data 
 
 (defparameter grammar
@@ -635,7 +652,7 @@
                                                                                   (mk-place nil)
                                                                                   (mk-code (var-get-code statement)))))
 
-  (factor               --> LP expr RP                                          #'(lambda (LP expr RP) (identity expr)))
+  (factor               --> LP expression RP                                    #'(lambda (LP expr RP) (identity expr)))
 
   (factor               --> ID                                                  #'(lambda (ID) 
                                                                                 (progn 
@@ -708,6 +725,7 @@
                                                                                         (mk-1ac 'init-stack (get-locals-size (var-get-block plist_def)))
                                                                                         (var-get-code plist_def)
                                                                                         (var-get-code stmts)
+                                                                                        (mk-1ac 'label *lastretlabel*)
                                                                                         (mk-0ac 'load)
                                                                                         (mk-1ac 'clean-and-return (get-locals-size (var-get-block plist_def)))
                                                                                         (mk-1ac 'end (t-get-val ID))
@@ -1103,7 +1121,7 @@
                                                                                       (mk-code 
                                                                                         (append
                                                                                           (var-get-code expression)
-                                                                                          (mk-1ac 'return (var-get-place expression))))
+                                                                                          (mk-2ac 'return (var-get-place expression)  (generatelabel))))
                                                                                       (mk-place nil)))))
 
   (output_statement     --> OUTPUT expression END                               #'(lambda (OUTPUT expression END)

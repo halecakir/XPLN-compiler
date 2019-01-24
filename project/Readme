@@ -1,0 +1,25 @@
+Status:
+ALL XPLN requirements is implemented.
+
+How to run:
+first:
+    ex-expr.lexer exNUM > exNUM_tokens
+then from yalalr:
+    (load "ex-expr")
+    (make-lalrparser)
+    (target-code-mips "exNUM_tokens" t)
+
+
+Sample codes:
+
+ex1: factorial of given number in a recursive way
+ex2: high order function with multiple argument
+ex3: mixed tests ( multiple function, for loop )
+ex4: nested for loop vs nested while loop ( they are doing the same thing)
+ex5: associativity and precedence
+ex6: function without return statement (hence, error reported)
+ex7: if statements
+ex8: lexical scope test
+
+
+    
